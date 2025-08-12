@@ -2,6 +2,7 @@
 """
 FastAPI Backend for Nepal AI Chatbot
 API endpoints for native Android integration (no Streamlit dependency)
+Railway-optimized version - Works with Procfile: uvicorn fastapi_backend:app --host 0.0.0.0 --port $PORT
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -11,6 +12,7 @@ from typing import Dict, Any, Optional, List
 import logging
 import time
 import uuid
+import os
 from contextlib import asynccontextmanager
 
 # Import your existing chatbot components
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Global chatbot instance
 nepal_chatbot = None
 
-# ✅ UPDATED: Request/Response Models to match your Android data classes exactly
+# ✅ Request/Response Models to match your Android data classes exactly
 class ChatRequest(BaseModel):
     message: str
     languagePreference: Optional[str] = None  # ✅ Direct camelCase field
@@ -104,7 +106,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enhanced CORS middleware for Android app
+# Enhanced CORS middleware for Android app and Railway
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -112,6 +114,7 @@ app.add_middleware(
         "http://127.0.0.1:*",
         "http://10.0.2.2:*",
         "http://192.168.*.*",
+        "https://*.railway.app",  # ✅ Add Railway domain support
         "*"  # Allow all origins for development
     ],
     allow_credentials=True,
@@ -132,7 +135,8 @@ async def health_check():
         "status": "running",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "environment": "railway" if os.environ.get("RAILWAY_ENVIRONMENT") else "local"
     }
 
 @app.get("/test", response_model=Dict[str, str])
@@ -141,7 +145,7 @@ async def test_endpoint():
         "status": "success",
         "message": "Connection to Nepal Chatbot API successful!",
         "timestamp": str(time.time()),
-        "server": "FastAPI"
+        "server": "FastAPI on Railway" if os.environ.get("RAILWAY_ENVIRONMENT") else "FastAPI Local"
     }
 
 @app.get("/health", response_model=SystemStatus)
@@ -149,7 +153,17 @@ async def get_system_status():
     if not nepal_chatbot:
         raise HTTPException(status_code=500, detail="Chatbot not initialized")
    
-    metrics = nepal_chatbot.get_system_metrics()
+    try:
+        metrics = nepal_chatbot.get_system_metrics()
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {str(e)}")
+        metrics = {
+            'dataset_size': 0,
+            'model': 'gemini-1.5-flash',
+            'embedding_method': 'hybrid',
+            'total_queries': 0,
+            'success_rate': 0.0
+        }
    
     return SystemStatus(
         status="healthy",
@@ -229,7 +243,7 @@ async def get_example_questions(language: str = "mixed"):
         ]
         return ExampleQuestionsResponse(questions=fallback_questions, language="mixed")
 
-# ✅ COMPLETELY FIXED: Chat endpoint with proper field mapping
+# ✅ Chat endpoint with proper field mapping
 @app.post("/chat", response_model=ChatResponse)
 async def send_message(request: ChatRequest, background_tasks: BackgroundTasks):
     if not nepal_chatbot:
@@ -271,7 +285,7 @@ async def send_message(request: ChatRequest, background_tasks: BackgroundTasks):
         if len(session['message_history']) > 20:
             session['message_history'] = session['message_history'][-20:]
        
-        # ✅ FIXED: Use direct camelCase field names that match your Android models
+        # ✅ Use direct camelCase field names that match your Android models
         return ChatResponse(
             response=result['response'],
             confidence=result['confidence'],
@@ -307,7 +321,12 @@ async def get_system_metrics():
     if not nepal_chatbot:
         raise HTTPException(status_code=500, detail="Chatbot not initialized")
    
-    metrics = nepal_chatbot.get_system_metrics()
+    try:
+        metrics = nepal_chatbot.get_system_metrics()
+    except Exception as e:
+        logger.error(f"Error getting metrics: {str(e)}")
+        metrics = {}
+    
     metrics['active_sessions'] = len(user_sessions)
     metrics['total_messages'] = sum(len(session['message_history']) for session in user_sessions.values())
     return metrics
@@ -332,22 +351,22 @@ async def debug_routes():
             })
     return {"routes": routes}
 
+# ✅ This section is only used for local development
+# Railway will use your Procfile: uvicorn fastapi_backend:app --host 0.0.0.0 --port $PORT
 if __name__ == "__main__":
     import uvicorn
-    import os
     
+    # For local development only
     port = int(os.environ.get("PORT", 8000))
     
     print("=" * 60)
-    print("🚀 Starting Nepal AI Chatbot API Server...")
+    print("🚀 Starting Nepal AI Chatbot API Server (Local Development)...")
     print(f"🌐 Port: {port}")
-    print("=" * 60)
     print("📱 Android Emulator: http://10.0.2.2:8000")
     print("💻 Localhost: http://localhost:8000")
     print("📋 API Docs: /docs")
     print("🔍 Health Check: /health")
     print("🧪 Test Endpoint: /test")
-    print("🛠️  Debug Routes: /debug/routes")
     print("=" * 60)
 
     uvicorn.run(
