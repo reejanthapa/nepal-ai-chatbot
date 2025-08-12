@@ -7,6 +7,7 @@ Implements multiple embedding techniques for optimal retrieval
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from scipy.sparse import hstack
 from typing import List, Tuple, Dict, Any
 import logging
 from config import Config
@@ -88,7 +89,6 @@ class VectorEmbeddingEngine:
         char_embeddings = char_vectorizer.fit_transform(documents)
         
         # Combine embeddings (weighted combination)
-        from scipy.sparse import hstack
         combined_embeddings = hstack([
             tfidf_embeddings * 0.7,  # Weight semantic similarity higher
             char_embeddings * 0.3    # Weight fuzzy matching lower
@@ -122,7 +122,6 @@ class VectorEmbeddingEngine:
         elif self.embedding_method == "hybrid":
             tfidf_query = self.vectorizer['tfidf'].transform([query])
             char_query = self.vectorizer['char'].transform([query])
-            from scipy.sparse import hstack
             query_embedding = hstack([tfidf_query * 0.7, char_query * 0.3])
         else:
             raise ValueError(f"Unknown embedding method: {self.embedding_method}")
