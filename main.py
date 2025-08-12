@@ -97,7 +97,6 @@ class NepalRAGChatbot:
                 "top_p": 0.95,
                 "top_k": 64,
                 "max_output_tokens": Config.MAX_TOKENS,
-                "response_mime_type": "text/plain",
             }
             
             safety_settings = [
@@ -485,4 +484,5 @@ If the problem persists, you can ask about:
             ])
         })
         
+
         return base_metrics
